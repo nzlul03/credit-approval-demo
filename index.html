@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Credit Approval Prediction</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: editorial header, then a two-column instrument: inputs on the left, a sticky gauge with the model's reasoning on the right. On phones the gauge collapses into a bottom bar. */
+:root{
+  --bg:#eef3f6; --surface:#ffffff; --surface2:#e3ebf1; --ink:#0f2236; --muted:#52687c; --line:#cfdbe4;
+  --accent:#1c9fa2; --accent-ink:#0b6b6e; --navy:#214b74;
+  --good:#1a8a5a; --bad:#c2413b; --warn:#b7791f;
+  --good-bg:#dff3ea; --bad-bg:#f8e3e1; --warn-bg:#f6ecd6;
+  --shadow:0 1px 2px rgba(15,34,54,.06),0 8px 24px rgba(15,34,54,.06);
+  --display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --body:'DM Sans','Segoe UI',system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0a1724; --surface:#112334; --surface2:#17304a; --ink:#e6eef5; --muted:#8fa6ba; --line:#223c55;
+  --accent:#35c0c3; --accent-ink:#5fd3d5; --navy:#6fa3d6;
+  --good:#4cc790; --bad:#f07a72; --warn:#e3b04b;
+  --good-bg:#12392b; --bad-bg:#40201f; --warn-bg:#3b2f14;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.3); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0a1724; --surface:#112334; --surface2:#17304a; --ink:#e6eef5; --muted:#8fa6ba; --line:#223c55;
+  --accent:#35c0c3; --accent-ink:#5fd3d5; --navy:#6fa3d6;
+  --good:#4cc790; --bad:#f07a72; --warn:#e3b04b;
+  --good-bg:#12392b; --bad-bg:#40201f; --warn-bg:#3b2f14;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.3); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 16px/1.55 var(--body);margin:0;
+  padding-block:0 24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1120px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.02em}
+p{margin:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* header */
+.hero{padding-block:40px 28px;display:grid;gap:20px;max-width:760px}
+.eyebrow{font:700 12px/1 var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink)}
+h1{font-size:clamp(34px,6vw,60px);line-height:1.02;font-weight:800}
+h1 em{font-style:normal;color:var(--accent-ink)}
+.lead{font-size:18px;color:var(--muted);max-width:60ch}
+.facts{display:flex;flex-wrap:wrap;gap:8px 24px;padding-top:4px}
+.fact{display:flex;flex-direction:column}
+.fact b{font:700 22px/1.1 var(--display)}
+.fact span{font-size:13px;color:var(--muted)}
+
+/* instrument */
+.tool{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:24px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow)}
+.form{padding:24px;display:grid;gap:26px;min-width:0}
+.form-head{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center}
+.form-head h2{font-size:22px}
+.presets{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:500 13px/1 var(--body);border:1px solid var(--line);background:var(--surface2);color:var(--ink);padding:9px 12px;border-radius:999px;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.chip:focus-visible,.seg label:focus-within,.step button:focus-visible,input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.field{display:grid;gap:10px;min-width:0}
+.field-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.field-top label,.field-top .lbl{font-weight:700;font-size:15px}
+.hint{font-size:13px;color:var(--muted)}
+.val{font:700 26px/1 var(--mono);color:var(--ink);white-space:nowrap}
+.val small{font:500 13px/1 var(--body);color:var(--muted);margin-left:4px}
+.band{font:700 12px/1 var(--body);padding:5px 9px;border-radius:999px;background:var(--surface2);color:var(--ink);margin-left:8px;vertical-align:middle}
+
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;margin:0;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:99px;background:linear-gradient(90deg,var(--accent) var(--p,50%),var(--surface2) var(--p,50%))}
+input[type=range]::-moz-range-track{height:8px;border-radius:99px;background:var(--surface2)}
+input[type=range]::-moz-range-progress{height:8px;border-radius:99px;background:var(--accent)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:var(--surface);border:3px solid var(--accent);margin-top:-9px;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--surface);border:3px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.scale{display:flex;justify-content:space-between;font:500 12px/1 var(--mono);color:var(--muted)}
+
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{display:grid;gap:2px;padding:12px;border:1.5px solid var(--line);border-radius:12px;cursor:pointer;background:var(--surface);min-width:0}
+.seg label b{font-size:15px}
+.seg label span{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+.seg input:checked+label{border-color:var(--accent);background:var(--surface2);box-shadow:inset 0 0 0 1px var(--accent)}
+
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.step{display:flex;align-items:center;gap:14px}
+.step button{width:44px;height:44px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);font:500 22px/1 var(--body);cursor:pointer}
+.step button:hover{border-color:var(--accent)}
+.step output{font:700 28px/1 var(--mono);min-width:1.6ch;text-align:center}
+.tenor{display:flex;flex-wrap:wrap;gap:8px}
+.tenor input{position:absolute;opacity:0;pointer-events:none}
+.tenor label{padding:11px 14px;border:1.5px solid var(--line);border-radius:12px;cursor:pointer;font:700 15px/1 var(--mono);background:var(--surface)}
+.tenor input:checked+label{border-color:var(--accent);background:var(--surface2);box-shadow:inset 0 0 0 1px var(--accent)}
+.tenor input:focus-visible+label{outline:3px solid var(--accent);outline-offset:2px}
+
+/* result */
+.side{position:sticky;top:16px;display:grid;gap:16px;min-width:0}
+.result{padding:24px;display:grid;gap:14px;justify-items:center;text-align:center}
+.result h2{font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-family:var(--body);font-weight:700}
+.gauge{width:100%;max-width:340px;position:relative}
+.gauge svg{display:block;width:100%;height:auto;overflow:visible}
+.gauge .track{stroke:var(--surface2)}
+.gauge .arc{transition:stroke-dasharray .5s cubic-bezier(.2,.8,.2,1),stroke .3s}
+.gauge .tick{stroke:var(--muted)}
+.gauge .tl{fill:var(--muted);font:500 10px var(--mono)}
+.gauge-num{position:absolute;left:0;right:0;bottom:2%;display:grid;gap:2px}
+.gauge-num b{font:800 clamp(44px,9vw,60px)/1 var(--display);letter-spacing:-.03em}
+.gauge-num span{font-size:12px;color:var(--muted)}
+.verdict{display:inline-flex;align-items:center;gap:8px;font:700 17px/1 var(--display);padding:12px 18px;border-radius:999px}
+.verdict.ok{background:var(--good-bg);color:var(--good)}
+.verdict.no{background:var(--bad-bg);color:var(--bad)}
+.verdict svg{width:18px;height:18px;flex:none}
+.msg{font:700 20px/1.25 var(--display);max-width:30ch;text-wrap:balance}
+.msg.ok{color:var(--good)}.msg.no{color:var(--bad)}
+.note{font-size:13px;color:var(--muted);max-width:42ch}
+.note.warn{color:var(--warn);font-weight:500}
+
+.why{padding:20px;display:grid;gap:12px}
+.why h3{font-size:16px}
+.why .hint{margin-top:-6px}
+.bars{display:grid;gap:9px}
+.bar{display:grid;grid-template-columns:minmax(84px,1.1fr) minmax(0,2fr) 44px;gap:10px;align-items:center;font-size:13px}
+.bar .nm{overflow-wrap:anywhere}
+.bar .tr{position:relative;height:10px;background:var(--surface2);border-radius:99px}
+.bar .tr::after{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--muted);opacity:.6}
+.bar i{position:absolute;top:0;bottom:0;border-radius:99px;transition:left .35s,width .35s,background .3s}
+.bar .n{font:500 12px var(--mono);text-align:right;color:var(--muted)}
+.legend{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+
+/* about */
+.about{padding-block:32px 8px;display:grid;gap:24px}
+.about h2{font-size:clamp(26px,4vw,36px)}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.card{padding:20px;display:grid;gap:8px;align-content:start}
+.card h3{font-size:17px}
+.card p{font-size:14px;color:var(--muted)}
+.cm{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px;align-items:center;font-size:12px;color:var(--muted);max-width:360px}
+.cm div.c{padding:14px 8px;border-radius:10px;text-align:center;font:700 22px/1 var(--mono);color:var(--ink)}
+.cm .r{background:var(--good-bg)} .cm .w{background:var(--bad-bg)}
+.cm .h{text-align:center}
+.cm .rl{writing-mode:vertical-rl;transform:rotate(180deg);text-align:center}
+.disc{background:var(--warn-bg);color:var(--ink);border-radius:14px;padding:16px 18px;font-size:14px;display:grid;gap:4px}
+.disc b{color:var(--warn)}
+footer{padding-block:28px 8px;font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}
+
+/* mobile bar */
+.mbar{display:none}
+@media (max-width:900px){
+  .tool{grid-template-columns:minmax(0,1fr)}
+  .side{position:static}
+  .cols{grid-template-columns:minmax(0,1fr)}
+  .mbar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:20;align-items:center;justify-content:space-between;gap:12px;
+    padding:12px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+    background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(0,0,0,.12)}
+  .mbar b{font:800 28px/1 var(--display)}
+  .mbar span{font-size:12px;color:var(--muted);display:block}
+  .mbar a{color:var(--accent-ink);font-weight:700;font-size:14px;text-decoration:none}
+  body{padding-bottom:96px}
+}
+@media (max-width:520px){
+  .row2{grid-template-columns:minmax(0,1fr)}
+  .form,.result{padding:18px}
+  .seg label{padding:10px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow">Credit Approval Prediction</div>
+  <h1>Will your credit application be <em>approved?</em></h1>
+  <p class="lead">Fill in the applicant profile, move the sliders, and see how a machine learning model assesses it in real time.</p>
+</header>
+
+<main class="tool" id="tool">
+  <section class="panel form" aria-labelledby="fh">
+    <div class="form-head">
+      <h2 id="fh">Applicant profile</h2>
+      <div class="presets" role="group" aria-label="Example profiles">
+        <button class="chip" type="button" data-preset="kuat">Strong profile</button>
+        <button class="chip" type="button" data-preset="kontrak">Contract worker</button>
+        <button class="chip" type="button" data-preset="berisiko">Risky profile</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="lbl" id="lblEmp">Employment type</div>
+      <div class="seg" role="radiogroup" aria-labelledby="lblEmp" id="emp">
+        <input type="radio" name="emp" id="emp-Permanent" value="Permanent"><label for="emp-Permanent"><b>Permanent</b><span>Salaried</span></label>
+        <input type="radio" name="emp" id="emp-Contract" value="Contract"><label for="emp-Contract"><b>Contract</b><span>Fixed term</span></label>
+        <input type="radio" name="emp" id="emp-Self-employed" value="Self-employed"><label for="emp-Self-employed"><b>Self-employed</b><span>Own business</span></label>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-top"><label for="age">Age</label><div class="val"><span id="v-age"></span><small>years</small></div></div>
+      <input type="range" id="age" min="18" max="65" step="1">
+      <div class="scale"><span>18</span><span>65</span></div>
+    </div>
+
+    <div class="field">
+      <div class="field-top"><label for="monthly_income">Monthly income</label><div class="val"><span id="v-monthly_income"></span><small>IDR million</small></div></div>
+      <input type="range" id="monthly_income" min="3" max="40" step="0.5">
+      <div class="scale"><span>IDR 3M</span><span>IDR 40M</span></div>
+    </div>
+
+    <div class="field">
+      <div class="field-top">
+        <label for="credit_score">Credit score<span class="band" id="band"></span></label>
+        <div class="val"><span id="v-credit_score"></span></div>
+      </div>
+      <input type="range" id="credit_score" min="350" max="850" step="1">
+      <div class="scale"><span>350</span><span>850</span></div>
+      <div class="hint">Higher means a better repayment history. Bands are approximate.</div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <div class="lbl" id="lblLoans">Active loans</div>
+        <div class="step" role="group" aria-labelledby="lblLoans">
+          <button type="button" id="loansMinus" aria-label="Decrease active loans">−</button>
+          <output id="v-existing_loans" aria-live="polite"></output>
+          <button type="button" id="loansPlus" aria-label="Increase active loans">+</button>
+        </div>
+        <div class="hint">Credits still being repaid (0 to 5).</div>
+      </div>
+      <div class="field">
+        <div class="lbl" id="lblTenor">Loan term</div>
+        <div class="tenor" role="radiogroup" aria-labelledby="lblTenor" id="tenor"></div>
+        <div class="hint">In months.</div>
+      </div>
+    </div>
+
+    <div class="field">
+      <div class="field-top"><label for="loan_amount">Requested loan amount</label><div class="val"><span id="v-loan_amount"></span><small>IDR million</small></div></div>
+      <input type="range" id="loan_amount" min="5" max="450" step="5">
+      <div class="scale"><span>IDR 5M</span><span>IDR 450M</span></div>
+    </div>
+  </section>
+
+  <aside class="side" id="result" aria-live="polite">
+    <div class="panel result">
+      <h2>Approval probability</h2>
+      <div class="gauge">
+        <svg viewBox="0 -14 220 138" role="img" aria-label="Approval probability gauge">
+          <path class="track" d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke-width="16" stroke-linecap="round"/>
+          <path class="arc" id="arc" d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke-width="16" stroke-linecap="round" pathLength="100" stroke-dasharray="0 100" stroke="var(--good)"/>
+          <line class="tick" x1="110" y1="4" x2="110" y2="30" stroke-width="2"/>
+          <text class="tl" x="110" y="-4" text-anchor="middle">50% threshold</text>
+        </svg>
+        <div class="gauge-num"><b id="pct">0%</b><span>likelihood per the model</span></div>
+      </div>
+      <div class="verdict ok" id="verdict"></div>
+      <p class="msg" id="msg"></p>
+      <p class="note" id="vnote"></p>
+    </div>
+
+    <div class="panel why">
+      <h3>Most influential factors</h3>
+      <p class="hint">Compared with the average applicant in the training data. Bars to the right raise the probability, bars to the left lower it.</p>
+      <div class="bars" id="bars"></div>
+      <div class="legend"><span>← lowers</span><span>raises →</span></div>
+    </div>
+  </aside>
+</main>
+
+<section class="about" id="about">
+  <div class="disc"><b>For demonstration only</b><span>This is a portfolio project trained on a small dataset. The result is not an official decision or assessment from any bank or financial institution. All calculations run in your browser and no data is sent anywhere.</span></div>
+</section>
+
+<footer><span>Built by Nuzulul Khairu Nissa</span><span>Model: Logistic Regression, scikit-learn</span></footer>
+</div>
+
+<div class="mbar" id="mbar"><div><b id="mpct">0%</b><span id="mver"></span></div><a href="#result" id="mlink">View details</a></div>
+
+<script>
+const M={"num": ["age", "monthly_income", "credit_score", "existing_loans", "loan_amount", "loan_term_months"], "mean": [40.93, 9.0595, 644.9875, 1.0, 73.44, 35.28], "scale": [11.590733367651936, 4.715099124090606, 82.17583187135985, 0.9219544457292888, 54.633564774779245, 16.741612825531476], "cats": ["Contract", "Permanent", "Self-employed"], "coef": [0.09727861306465455, 0.6852078989758309, 1.6286842194310152, -0.20325458663799106, -0.7305584891298035, 0.8187997014092885, -0.14851872119369738, 0.40068853331787924, -0.2545593767777212], "intercept": 0.30578698137869337, "acc": 0.8, "cm": [[30, 13], [7, 50]], "n": 500, "rng": {"age": [21.0, 60.0], "monthly_income": [3.0, 39.2], "credit_score": [414.0, 850.0], "existing_loans": [0.0, 4.0], "loan_amount": [7.0, 436.0], "loan_term_months": [12.0, 60.0]}, "freq": [0.31, 0.542, 0.148], "approval_rate": 0.57};
+const $=id=>document.getElementById(id);
+const fmt=(n,d=0)=>n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const S={age:28,employment_type:'Permanent',monthly_income:9.5,credit_score:720,existing_loans:0,loan_amount:60,loan_term_months:36};
+const PRESETS={
+  kuat:{age:34,employment_type:'Permanent',monthly_income:14,credit_score:760,existing_loans:0,loan_amount:60,loan_term_months:36},
+  kontrak:{age:27,employment_type:'Contract',monthly_income:6.5,credit_score:650,existing_loans:1,loan_amount:70,loan_term_months:24},
+  berisiko:{age:19,employment_type:'Self-employed',monthly_income:2.5,credit_score:540,existing_loans:3,loan_amount:20,loan_term_months:12}
+};
+const NAMES={age:'Age',monthly_income:'Income',credit_score:'Credit score',existing_loans:'Active loans',loan_amount:'Loan amount',loan_term_months:'Loan term',employment_type:'Employment'};
+const EMPID={Permanent:'Permanent',Contract:'Contract','Self-employed':'Self-employed'};
+
+/* inference: identical to the notebook pipeline (StandardScaler + OneHotEncoder + LogisticRegression) */
+function predict(a){
+  const nums=M.num.map((k,i)=>(a[k]-M.mean[i])/M.scale[i]);
+  const ci=M.cats.indexOf(a.employment_type);
+  const nc=M.num.length;
+  const base=M.cats.reduce((s,_,j)=>s+M.freq[j]*M.coef[nc+j],0);
+  const parts=M.num.map((k,i)=>({k,c:M.coef[i]*nums[i]}));
+  parts.push({k:'employment_type',c:M.coef[nc+ci]-base});
+  const z=M.intercept+base+parts.reduce((s,p)=>s+p.c,0);
+  return {p:1/(1+Math.exp(-z)),parts};
+}
+
+function band(s){return s<580?['Poor','var(--bad)']:s<670?['Fair','var(--warn)']:s<740?['Good','var(--good)']:['Excellent','var(--good)']}
+const CHECK='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5l4 4 8-9"/></svg>';
+const CROSS='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>';
+
+function fillTrack(el){el.style.setProperty('--p',((el.value-el.min)/(el.max-el.min)*100)+'%')}
+
+function render(){
+  // labels
+  $('v-age').textContent=S.age;
+  $('v-monthly_income').textContent=fmt(S.monthly_income,1);
+  $('v-credit_score').textContent=S.credit_score;
+  $('v-loan_amount').textContent=fmt(S.loan_amount);
+  $('v-existing_loans').textContent=S.existing_loans;
+  const b=band(S.credit_score); const be=$('band'); be.textContent=b[0]; be.style.color=b[1];
+  ['age','monthly_income','credit_score','loan_amount'].forEach(k=>{const el=$(k); if(+el.value!==S[k])el.value=S[k]; fillTrack(el)});
+  document.querySelector('#emp input[value="'+S.employment_type+'"]').checked=true;
+  document.querySelector('#tenor input[value="'+S.loan_term_months+'"]').checked=true;
+  $('loansMinus').disabled=S.existing_loans<=0; $('loansPlus').disabled=S.existing_loans>=5;
+
+  // result
+  const r=predict(S), pct=r.p*100, ok=pct>=50;
+  const arc=$('arc'); arc.setAttribute('stroke-dasharray',pct.toFixed(1)+' 100'); arc.setAttribute('stroke',ok?'var(--good)':'var(--bad)');
+  const pt=pct<1?'<1%':pct>99?'>99%':Math.round(pct)+'%';
+  $('pct').textContent=pt; $('mpct').textContent=pt;
+  const v=$('verdict'); v.className='verdict '+(ok?'ok':'no'); v.innerHTML=(ok?CHECK+'Approved':CROSS+'Not approved');
+  $('mver').textContent=ok?'Predicted approved':'Predicted not approved';
+  const m=$('msg'); m.className='msg '+(ok?'ok':'no');
+  m.textContent=ok?'Congratulations! This application is likely to be approved.':'We’re sorry. This application is unlikely to be approved.';
+  const n=$('vnote'); const close=Math.abs(pct-50)<=10;
+  n.className='note'+(close?' warn':'');
+  n.textContent=close?'This result is close to the 50% threshold. A small change to the profile could flip the decision.':ok?'This profile resembles applicants who were approved in the training data.':'This profile resembles applicants who were declined in the training data.';
+
+  // contributions
+  const parts=r.parts.slice().sort((a,b)=>Math.abs(b.c)-Math.abs(a.c));
+  const mx=Math.max(2,...parts.map(p=>Math.abs(p.c)));
+  $('bars').innerHTML=parts.map(p=>{
+    const w=Math.min(50,Math.abs(p.c)/mx*50), pos=p.c>=0;
+    const val=p.k==='employment_type'?EMPID[S.employment_type]:null;
+    return '<div class="bar"><span class="nm">'+NAMES[p.k]+(val?' · '+val:'')+'</span>'+
+      '<div class="tr"><i style="left:'+(pos?50:50-w)+'%;width:'+w+'%;background:'+(pos?'var(--good)':'var(--bad)')+'"></i></div>'+
+      '<span class="n">'+(pos?'+':'−')+Math.abs(p.c).toFixed(1)+'</span></div>';
+  }).join('');
+}
+
+/* wiring */
+['age','monthly_income','credit_score','loan_amount'].forEach(k=>{
+  $(k).addEventListener('input',e=>{S[k]=+e.target.value;render()});
+});
+document.querySelectorAll('#emp input').forEach(i=>i.addEventListener('change',()=>{S.employment_type=i.value;render()}));
+$('tenor').innerHTML=[12,24,36,48,60].map(t=>'<input type="radio" name="tenor" id="t'+t+'" value="'+t+'"><label for="t'+t+'">'+t+'</label>').join('');
+document.querySelectorAll('#tenor input').forEach(i=>i.addEventListener('change',()=>{S.loan_term_months=+i.value;render()}));
+$('loansMinus').onclick=()=>{S.existing_loans=Math.max(0,S.existing_loans-1);render()};
+$('loansPlus').onclick=()=>{S.existing_loans=Math.min(5,S.existing_loans+1);render()};
+document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{Object.assign(S,PRESETS[b.dataset.preset]);render()});
+$('mlink').addEventListener('click',e=>{e.preventDefault();$('result').scrollIntoView({behavior:'smooth',block:'start'})});
+
+render();
+</script>
